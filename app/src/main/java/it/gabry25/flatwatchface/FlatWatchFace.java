@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -87,11 +89,28 @@ public class FlatWatchFace extends CanvasWatchFaceService {
                 invalidate();
             }
         };
+        private static final float STROKE_WIDTH = 6f;
+        private static final float MINUTES_STROKE_WIDTH = 13f;
+
         private boolean mRegisteredTimeZoneReceiver = false;
         private float mXOffset;
         private float mYOffset;
         private Paint mBackgroundPaint;
+        private Paint mHandHourPaint;
+        private Paint mMinuteHandPaint;
+        private Paint mSecondHandPaint;
+        private Bitmap mBackgroundImage;
         private Paint mTextPaint;
+
+        private float mHourHandLength;
+        private float mMinuteHandLength;
+        private float mHourHandOffset;
+        private float mMinuteHandOffset;
+        private int mWidth;
+        private int mHeight;
+        private float mCenterX;
+        private float mCenterY;
+        private float mScale = 1;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -111,6 +130,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mCalendar = Calendar.getInstance();
 
             Resources resources = FlatWatchFace.this.getResources();
+            mXOffset = resources.getDimension(R.dimen.digital_x_offset);
             mYOffset = resources.getDimension(R.dimen.digital_y_offset);
 
             // Initializes background.
@@ -118,13 +138,33 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mBackgroundPaint.setColor(
                     ContextCompat.getColor(getApplicationContext(), R.color.background));
 
+            mBackgroundImage = BitmapFactory.decodeResource(getResources(),R.drawable.background);
 
-            // Initializes Watch Face.
+            // Initializes Analog Watch Face.
+            mSecondHandPaint = new Paint();
+            mSecondHandPaint.setColor(Color.YELLOW);
+            mSecondHandPaint.setStrokeWidth(STROKE_WIDTH);
+            mSecondHandPaint.setAntiAlias(true);
+            mSecondHandPaint.setStrokeCap(Paint.Cap.ROUND);
+            mMinuteHandPaint = new Paint();
+            mMinuteHandPaint.setStyle(Paint.Style.STROKE);
+            mMinuteHandPaint.setColor(Color.CYAN);
+            mMinuteHandPaint.setStrokeWidth(MINUTES_STROKE_WIDTH);
+            mMinuteHandPaint.setAntiAlias(true);
+            mMinuteHandPaint.setStrokeCap(Paint.Cap.ROUND);
+            mHandHourPaint = new Paint();
+            mHandHourPaint.setColor(Color.MAGENTA);
+            mHandHourPaint.setStrokeWidth(STROKE_WIDTH);
+            mHandHourPaint.setAntiAlias(true);
+            mHandHourPaint.setStrokeCap(Paint.Cap.SQUARE);
+
+            // Initializes Digital Watch Face.
             mTextPaint = new Paint();
             mTextPaint.setTypeface(NORMAL_TYPEFACE);
             mTextPaint.setAntiAlias(true);
             mTextPaint.setColor(
                     ContextCompat.getColor(getApplicationContext(), R.color.digital_text));
+            mTextPaint.setTextSize(resources.getDimension(R.dimen.digital_text_size));
         }
 
         @Override
@@ -167,21 +207,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             }
             mRegisteredTimeZoneReceiver = false;
             FlatWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
-        }
-
-        @Override
-        public void onApplyWindowInsets(WindowInsets insets) {
-            super.onApplyWindowInsets(insets);
-
-            // Load resources that have alternate values for round watches.
-            Resources resources = FlatWatchFace.this.getResources();
-            boolean isRound = insets.isRound();
-            mXOffset = resources.getDimension(isRound
-                    ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
-            float textSize = resources.getDimension(isRound
-                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
-
-            mTextPaint.setTextSize(textSize);
         }
 
         @Override
@@ -235,24 +260,70 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         }
 
         @Override
+        public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            super.onSurfaceChanged(holder, format, width, height);
+            mWidth = width;
+            mHeight = height;
+
+            mScale = ((float) width) / (float) mBackgroundImage.getWidth();
+            mBackgroundImage = Bitmap.createScaledBitmap
+                    (mBackgroundImage, (int)(mBackgroundImage.getWidth() * mScale),
+                            (int)(mBackgroundImage.getHeight() * mScale), true);
+
+            /*
+             * Find the coordinates of the center point on the screen.
+             * Ignore the window insets so that, on round watches
+             * with a "chin", the watch face is centered on the entire screen,
+             * not just the usable portion.
+             */
+            mCenterX = mWidth / 2f;
+            mCenterY = mHeight / 2f;
+            /*
+             * Calculate the lengths of the watch hands and store them in member variables.
+             */
+            mHourHandOffset = 50;
+            mHourHandLength = mCenterX - mHourHandOffset - 20;
+            mMinuteHandOffset = 40;
+            mMinuteHandLength = mCenterX - mMinuteHandOffset - 40;
+        }
+
+        @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             // Draw the background.
             if (isInAmbientMode()) {
                 canvas.drawColor(Color.BLACK);
             } else {
-                canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
+                canvas.drawBitmap(mBackgroundImage, 0, 0, mBackgroundPaint);
             }
 
             // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             long now = System.currentTimeMillis();
             mCalendar.setTimeInMillis(now);
 
-            String text = mAmbient
-                    ? String.format("%d:%02d", mCalendar.get(Calendar.HOUR),
-                    mCalendar.get(Calendar.MINUTE))
-                    : String.format("%d:%02d:%02d", mCalendar.get(Calendar.HOUR),
-                    mCalendar.get(Calendar.MINUTE), mCalendar.get(Calendar.SECOND));
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+            String text = String.format("%d:%02d", mCalendar.get(Calendar.HOUR),
+                    mCalendar.get(Calendar.MINUTE));
+            canvas.drawText(text, mCenterX - mXOffset, mYOffset, mTextPaint);
+
+            /*
+             * These calculations reflect the rotation in degrees per unit of time, e.g.,
+             * 360 / 60 = 6 and 360 / 12 = 30.
+             */
+
+            final float minutesRotation = mCalendar.get(Calendar.MINUTE) * 6f;
+
+            final float hourHandOffset = mCalendar.get(Calendar.MINUTE) / 2f;
+            final float hoursRotation = (mCalendar.get(Calendar.HOUR) * 30) + hourHandOffset;
+
+            // save the canvas state before we begin to rotate it
+            canvas.save();
+
+            canvas.rotate(hoursRotation, mCenterX, mCenterY);
+            canvas.drawLine(mCenterX, mCenterY - mHourHandLength, mCenterX, mHourHandOffset, mHandHourPaint);
+
+            canvas.drawArc(mMinuteHandOffset,mMinuteHandOffset,mWidth-mMinuteHandOffset,mHeight-mMinuteHandOffset,
+                    -90-hoursRotation,minutesRotation,false,mMinuteHandPaint);
+            // restore the canvas' original orientation.
+            canvas.restore();
         }
 
         /**

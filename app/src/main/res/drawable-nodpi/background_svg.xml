@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" version="1.1">
-   <circle cx="300" cy="300" r="300" fill="darkslategray"/>
+   <circle cx="300" cy="300" r="300" fill="black"/>
    <!--<circle cx="300" cy="300" r="240" stroke="black" stroke-width="32" fill="darkslategray"/>-->
 
-   <rect width="16" height="24" x="292" style="fill:black"/>
-   <rect width="16" height="24" x="292" y="576" style="fill:black"/>
-   <rect width="24" height="16" y="292" style="fill:black"/>
-   <rect width="24" height="16" x="576" y="292" style="fill:black"/>
+   <rect width="16" height="24" x="292" style="fill:darkslategray"/>
+   <rect width="16" height="24" x="292" y="576" style="fill:darkslategray"/>
+   <rect width="24" height="16" y="292" style="fill:darkslategray"/>
+   <rect width="24" height="16" x="576" y="292" style="fill:darkslategray"/>
    
    <rect width="8" height="22" x="406" y="-190" style="fill:slategray" transform="rotate(30)"/>
    <rect width="8" height="22" x="404" y="-410" style="fill:slategray" transform="rotate(60)"/>

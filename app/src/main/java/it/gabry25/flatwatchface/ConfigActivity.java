@@ -138,7 +138,6 @@ public class ConfigActivity extends Activity implements View.OnClickListener {
 
     public void updateComplicationViews(int watchFaceComplicationId,
                                         ComplicationProviderInfo complicationProviderInfo) {
-
         if (watchFaceComplicationId == mLeftComplicationId) {
             if (complicationProviderInfo != null) {
                 mLeftComplication.setImageIcon(complicationProviderInfo.providerIcon);

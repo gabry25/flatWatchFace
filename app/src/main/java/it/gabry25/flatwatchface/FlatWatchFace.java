@@ -3,6 +3,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,7 +17,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.v4.content.ContextCompat;
 import android.support.wearable.complications.ComplicationData;
-import android.support.wearable.complications.SystemProviders;
 import android.support.wearable.complications.rendering.ComplicationDrawable;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
@@ -110,14 +110,14 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             }
         };
         private static final float STROKE_WIDTH = 6f;
-        private static final float MINUTES_STROKE_WIDTH = 13f;
-        private static final float DIGITAL_TIME_SIZE = 65;
-        private static final float DIGITAL_DATE_SIZE = 25;
 
+        private float mDigitalTimeSize;
+        private float mDigitalDateSize;
+        private float mMinutesStrokeWidth;
         private boolean mRegisteredTimeZoneReceiver = false;
         private float mDateYOffset;
-        private float mTimeYOffset=15;
-        private int mCenterYOffset=20;
+        private float mTimeYOffset;
+        private int mCenterYOffset;
         private Paint mBackgroundPaint;
         private Paint mHandHourPaint;
         private Paint mMinuteHandPaint;
@@ -125,9 +125,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private Bitmap mBackgroundImage;
         private Paint mDatePaint;
         private Paint mTimePaint;
-        private float mHourHandLength = 20;
-        private float mHourHandOffset = 50;
-        private float mMinuteHandOffset = 40;
+        private float mMinuteCircleOffset;
         private int mWidth;
         private int mHeight;
         private float mCenterX;
@@ -137,7 +135,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private DateFormat mDateFormat;
         private DateFormat mTimeFormat;
         private ComplicationDrawable[] mComplicationDrawables;
-        //private SparseArray<ComplicationDrawable> mComplicationDrawables;
         private ComplicationData[] mComplicationDatas;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
@@ -146,33 +143,49 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private boolean mLowBitAmbient;
         private boolean mBurnInProtection;
         //private boolean mAmbient;
+
+        private void initVariables(Resources res){
+            mMinutesStrokeWidth = res.getDimension(R.dimen.minutes_stroke_width);
+            mMinuteCircleOffset = res.getDimension(R.dimen.minute_circle_offset);
+            mTimeYOffset = res.getDimension(R.dimen.time_vertical_offset);
+            mDateYOffset = res.getDimension(R.dimen.date_vertical_offset);
+            mCenterYOffset = (int)res.getDimension(R.dimen.center_vertical_offset);
+            mDigitalTimeSize = res.getDimension(R.dimen.time_text_size);
+            mDigitalDateSize = res.getDimension(R.dimen.date_text_size);
+        }
+
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
             setWatchFaceStyle(new WatchFaceStyle.Builder(FlatWatchFace.this)
                     .setAcceptsTapEvents(true)
                     .build());
+            Resources res = getResources();
+            initVariables(res);
             mCalendar = Calendar.getInstance();
             // Initializes background.
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(
                     ContextCompat.getColor(getApplicationContext(), R.color.background));
-            mBackgroundImage = BitmapFactory.decodeResource(getResources(),R.drawable.background);
+            mBackgroundImage = BitmapFactory.decodeResource(res,R.drawable.background);
             // Initializes Analog Watch Face.
             mMinuteHandPaint = new Paint();
             mMinuteHandPaint.setStyle(Paint.Style.STROKE);
-            mMinuteHandPaint.setColor(Color.CYAN);
-            mMinuteHandPaint.setStrokeWidth(MINUTES_STROKE_WIDTH);
+            mMinuteHandPaint.setColor(ContextCompat.getColor(getApplicationContext(),
+                    R.color.analog_minutes));
+            mMinuteHandPaint.setStrokeWidth(mMinutesStrokeWidth);
             mMinuteHandPaint.setAntiAlias(true);
             mMinuteHandPaint.setStrokeCap(Paint.Cap.ROUND);
             mCirclePaint = new Paint();
             mCirclePaint.setStyle(Paint.Style.STROKE);
-            mCirclePaint.setColor(Color.BLACK);
-            mCirclePaint.setStrokeWidth(MINUTES_STROKE_WIDTH+5);
+            mCirclePaint.setColor(ContextCompat.getColor(getApplicationContext(),
+                    R.color.analog_circle));
+            mCirclePaint.setStrokeWidth(mMinutesStrokeWidth +5);
             mCirclePaint.setAntiAlias(true);
             mCirclePaint.setStrokeCap(Paint.Cap.ROUND);
             mHandHourPaint = new Paint();
-            mHandHourPaint.setColor(Color.MAGENTA);
+            mHandHourPaint.setColor(ContextCompat.getColor(getApplicationContext(),
+                    R.color.analog_hours));
             mHandHourPaint.setStrokeWidth(STROKE_WIDTH);
             mHandHourPaint.setAntiAlias(true);
             mHandHourPaint.setStrokeCap(Paint.Cap.SQUARE);
@@ -186,37 +199,34 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mTimePaint.setAntiAlias(true);
             mTimePaint.setColor(ContextCompat.getColor(getApplicationContext(),
                     R.color.digital_time));
-            mTimePaint.setTextSize(DIGITAL_TIME_SIZE);
+            mTimePaint.setTextSize(mDigitalTimeSize);
             mTimePaint.setTextAlign(Paint.Align.CENTER);
             mDatePaint = new Paint();
             mDatePaint.setTypeface(NORMAL_TYPEFACE);
             mDatePaint.setAntiAlias(true);
             mDatePaint.setColor(ContextCompat.getColor(getApplicationContext(),
                     R.color.digital_date));
-            mDatePaint.setTextSize(DIGITAL_DATE_SIZE);
+            mDatePaint.setTextSize(mDigitalDateSize);
             mDatePaint.setTextAlign(Paint.Align.CENTER);
 
             // Initializes Complications
             mComplicationDrawables = new ComplicationDrawable[COMPLICATION_IDS.length];
             mComplicationDatas = new ComplicationData[COMPLICATION_IDS.length];
             //mComplicationDrawables = new SparseArray<>(COMPLICATION_IDS.length);
+            int compColor = ContextCompat.getColor(getApplicationContext(),
+                    R.color.outline_complications);
             for(int i=0;i<COMPLICATION_IDS.length;++i) {
                 //mComplicationDrawables[i] = (ComplicationDrawable) getDrawable(R.drawable.custom_complication_styles);
                 //mComplicationDrawables[i].setContext(getApplicationContext());
                 mComplicationDrawables[i] = new ComplicationDrawable(getApplicationContext());
-                mComplicationDrawables[i].setTextColorActive(Color.WHITE);
-                mComplicationDrawables[i].setIconColorActive(Color.WHITE);
+                mComplicationDrawables[i].setTextColorActive(compColor);
+                mComplicationDrawables[i].setIconColorActive(compColor);
                 mComplicationDrawables[i].setBorderStyleActive(ComplicationDrawable
                         .BORDER_STYLE_NONE);
+                //mComplicationDrawables[i].setTextColorAmbient(compColor);
+                //mComplicationDrawables[i].setIconColorAmbient(compColor);
             }
-
-            setDefaultSystemComplicationProvider(LEFT_COMPLICATION_ID,
-                    SystemProviders.WATCH_BATTERY,ComplicationData.TYPE_RANGED_VALUE);
-            setDefaultSystemComplicationProvider(CENTER_COMPLICATION_ID,
-                    SystemProviders.NEXT_EVENT,ComplicationData.TYPE_ICON);
-            setDefaultSystemComplicationProvider(RIGHT_COMPLICATION_ID,
-                    SystemProviders.MOST_RECENT_APP,ComplicationData.TYPE_SMALL_IMAGE);
-                setActiveComplications(COMPLICATION_IDS);
+            setActiveComplications(COMPLICATION_IDS);
         }
         @Override
         public void onDestroy() {
@@ -321,8 +331,8 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             super.onSurfaceChanged(holder, format, width, height);
             mWidth = width;
             mHeight = height;
-            innerCircle = new RectF(mMinuteHandOffset,mMinuteHandOffset,
-                    mWidth-mMinuteHandOffset,mHeight-mMinuteHandOffset);
+            innerCircle = new RectF(mMinuteCircleOffset,mMinuteCircleOffset,
+                    mWidth-mMinuteCircleOffset,mHeight-mMinuteCircleOffset);
             mScale = ((float) width) / (float) mBackgroundImage.getWidth();
             mBackgroundImage = Bitmap.createScaledBitmap
                     (mBackgroundImage, (int)(mBackgroundImage.getWidth() * mScale),
@@ -331,7 +341,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mCenterX = mWidth / 2f;
             mCenterY = mHeight / 2f;
             //mHourHandLength = mCenterX - mHourHandOffset - 20;
-            mDateYOffset = mCenterY / 2.5f;
 
             Rect rect;
             int complicationSize = width/4;
@@ -365,8 +374,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             // save the canvas state before we begin to rotate it
             canvas.save();
             canvas.rotate(hoursRotation, mCenterX, mCenterY);
-            canvas.drawLine(mCenterX, mHourHandOffset,mCenterX,
-                    mHourHandOffset + mHourHandLength + hoursRotation/15, mHandHourPaint);
+            canvas.drawLine(mCenterX,0,mCenterX,mMinuteCircleOffset,mHandHourPaint);
             canvas.drawOval(innerCircle,mCirclePaint);
             canvas.drawArc(innerCircle,-90-hoursRotation,minutesRotation,
                     false,mMinuteHandPaint);

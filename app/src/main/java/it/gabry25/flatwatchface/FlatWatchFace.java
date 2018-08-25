@@ -1,5 +1,4 @@
 package it.gabry25.flatwatchface;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -16,11 +15,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v4.content.ContextCompat;
+import android.support.wearable.complications.ComplicationData;
+import android.support.wearable.complications.SystemProviders;
+import android.support.wearable.complications.rendering.ComplicationDrawable;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.view.SurfaceHolder;
-import android.widget.Toast;
-
 import java.lang.ref.WeakReference;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -28,45 +28,65 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
-
 /**
- * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
- * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
- * <p>
- * Important Note: Because watch face apps do not have a default Activity in
- * their project, you will need to set your Configurations to
- * "Do not launch Activity" for both the Wear and/or Application modules. If you
- * are unsure how to do this, please review the "Run Starter project" section
- * in the Google Watch Face Code Lab:
- * https://codelabs.developers.google.com/codelabs/watchface/index.html#0
+ * Digital and analog watch face with date and complications. On devices
+ * with low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
  */
 public class FlatWatchFace extends CanvasWatchFaceService {
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
-
     /**
      * Update rate in milliseconds for interactive mode. Defaults to one second
      * because the watch face needs to update seconds in interactive mode.
      */
-    private static final long INTERACTIVE_UPDATE_RATE_MS = TimeUnit.SECONDS.toMillis(1);
+    private static final long INTERACTIVE_UPDATE_RATE_MS = TimeUnit.MINUTES.toMillis(1);
+
+    private static final int LEFT_COMPLICATION_ID = 0;
+    private static final int CENTER_COMPLICATION_ID = 1;
+    private static final int RIGHT_COMPLICATION_ID = 2;
+    private static final int[] COMPLICATION_IDS = {LEFT_COMPLICATION_ID,
+            CENTER_COMPLICATION_ID,RIGHT_COMPLICATION_ID};
+
+    private static final int[] COMPLICATION_SUPPORTED_TYPES = {
+            ComplicationData.TYPE_RANGED_VALUE,
+            ComplicationData.TYPE_ICON,
+            ComplicationData.TYPE_SHORT_TEXT,
+            ComplicationData.TYPE_SMALL_IMAGE
+    };
+
+    public static int getLeftComplicationId() {
+        return LEFT_COMPLICATION_ID;
+    }
+
+    public static int getCenterComplicationId() {
+        return CENTER_COMPLICATION_ID;
+    }
+
+    public static int getRightComplicationId() {
+        return RIGHT_COMPLICATION_ID;
+    }
+
+    public static int[] getComplicationIds() {
+        return COMPLICATION_IDS;
+    }
+
+    public static int[] getComplicationSupportedTypes(){
+        return COMPLICATION_SUPPORTED_TYPES;
+    }
 
     /**
      * Handler message id for updating the time periodically in interactive mode.
      */
     private static final int MSG_UPDATE_TIME = 0;
-
     @Override
     public Engine onCreateEngine() {
         return new Engine();
     }
-
     private static class EngineHandler extends Handler {
         private final WeakReference<FlatWatchFace.Engine> mWeakReference;
-
-        public EngineHandler(FlatWatchFace.Engine reference) {
+        private EngineHandler(FlatWatchFace.Engine reference) {
             mWeakReference = new WeakReference<>(reference);
         }
-
         @Override
         public void handleMessage(Message msg) {
             FlatWatchFace.Engine engine = mWeakReference.get();
@@ -79,9 +99,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             }
         }
     }
-
     private class Engine extends CanvasWatchFaceService.Engine {
-
         private final Handler mUpdateTimeHandler = new EngineHandler(this);
         private Calendar mCalendar;
         private final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
@@ -93,12 +111,13 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         };
         private static final float STROKE_WIDTH = 6f;
         private static final float MINUTES_STROKE_WIDTH = 13f;
-        private static final float DIGITAL_TIME_SIZE = 55;
+        private static final float DIGITAL_TIME_SIZE = 65;
         private static final float DIGITAL_DATE_SIZE = 25;
 
         private boolean mRegisteredTimeZoneReceiver = false;
         private float mDateYOffset;
-        private float mTimeYOffset=-15;
+        private float mTimeYOffset=15;
+        private int mCenterYOffset=20;
         private Paint mBackgroundPaint;
         private Paint mHandHourPaint;
         private Paint mMinuteHandPaint;
@@ -106,8 +125,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private Bitmap mBackgroundImage;
         private Paint mDatePaint;
         private Paint mTimePaint;
-
-        private float mHourHandLength;
+        private float mHourHandLength = 20;
         private float mHourHandOffset = 50;
         private float mMinuteHandOffset = 40;
         private int mWidth;
@@ -115,34 +133,31 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private float mCenterX;
         private float mCenterY;
         private float mScale = 1;
-
+        RectF innerCircle;
         private DateFormat mDateFormat;
         private DateFormat mTimeFormat;
+        private ComplicationDrawable[] mComplicationDrawables;
+        //private SparseArray<ComplicationDrawable> mComplicationDrawables;
+        private ComplicationData[] mComplicationDatas;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
          */
         private boolean mLowBitAmbient;
-        //private boolean mBurnInProtection;
+        private boolean mBurnInProtection;
         //private boolean mAmbient;
-
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
-
             setWatchFaceStyle(new WatchFaceStyle.Builder(FlatWatchFace.this)
                     .setAcceptsTapEvents(true)
                     .build());
-
             mCalendar = Calendar.getInstance();
-
             // Initializes background.
             mBackgroundPaint = new Paint();
             mBackgroundPaint.setColor(
                     ContextCompat.getColor(getApplicationContext(), R.color.background));
-
             mBackgroundImage = BitmapFactory.decodeResource(getResources(),R.drawable.background);
-
             // Initializes Analog Watch Face.
             mMinuteHandPaint = new Paint();
             mMinuteHandPaint.setStyle(Paint.Style.STROKE);
@@ -161,54 +176,68 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mHandHourPaint.setStrokeWidth(STROKE_WIDTH);
             mHandHourPaint.setAntiAlias(true);
             mHandHourPaint.setStrokeCap(Paint.Cap.SQUARE);
-
             //Initializes the format
             //mDateFormat = SimpleDateFormat.getDateInstance(DateFormat.FULL);
             mDateFormat = new SimpleDateFormat("EE, dd MMM",Locale.getDefault());
-            mTimeFormat = SimpleDateFormat.getTimeInstance(DateFormat.SHORT,Locale.ITALIAN);
-
+            mTimeFormat = SimpleDateFormat.getTimeInstance(DateFormat.SHORT,Locale.getDefault());
             // Initializes Digital Watch Face.
             mTimePaint = new Paint();
             mTimePaint.setTypeface(NORMAL_TYPEFACE);
             mTimePaint.setAntiAlias(true);
-            mTimePaint.setColor(
-                    ContextCompat.getColor(getApplicationContext(), R.color.digital_time));
+            mTimePaint.setColor(ContextCompat.getColor(getApplicationContext(),
+                    R.color.digital_time));
             mTimePaint.setTextSize(DIGITAL_TIME_SIZE);
             mTimePaint.setTextAlign(Paint.Align.CENTER);
             mDatePaint = new Paint();
             mDatePaint.setTypeface(NORMAL_TYPEFACE);
             mDatePaint.setAntiAlias(true);
-            mDatePaint.setColor(
-                    ContextCompat.getColor(getApplicationContext(), R.color.digital_date));
+            mDatePaint.setColor(ContextCompat.getColor(getApplicationContext(),
+                    R.color.digital_date));
             mDatePaint.setTextSize(DIGITAL_DATE_SIZE);
             mDatePaint.setTextAlign(Paint.Align.CENTER);
-        }
 
+            // Initializes Complications
+            mComplicationDrawables = new ComplicationDrawable[COMPLICATION_IDS.length];
+            mComplicationDatas = new ComplicationData[COMPLICATION_IDS.length];
+            //mComplicationDrawables = new SparseArray<>(COMPLICATION_IDS.length);
+            for(int i=0;i<COMPLICATION_IDS.length;++i) {
+                //mComplicationDrawables[i] = (ComplicationDrawable) getDrawable(R.drawable.custom_complication_styles);
+                //mComplicationDrawables[i].setContext(getApplicationContext());
+                mComplicationDrawables[i] = new ComplicationDrawable(getApplicationContext());
+                mComplicationDrawables[i].setTextColorActive(Color.WHITE);
+                mComplicationDrawables[i].setIconColorActive(Color.WHITE);
+                mComplicationDrawables[i].setBorderStyleActive(ComplicationDrawable
+                        .BORDER_STYLE_NONE);
+            }
+
+            setDefaultSystemComplicationProvider(LEFT_COMPLICATION_ID,
+                    SystemProviders.WATCH_BATTERY,ComplicationData.TYPE_RANGED_VALUE);
+            setDefaultSystemComplicationProvider(CENTER_COMPLICATION_ID,
+                    SystemProviders.NEXT_EVENT,ComplicationData.TYPE_ICON);
+            setDefaultSystemComplicationProvider(RIGHT_COMPLICATION_ID,
+                    SystemProviders.MOST_RECENT_APP,ComplicationData.TYPE_SMALL_IMAGE);
+                setActiveComplications(COMPLICATION_IDS);
+        }
         @Override
         public void onDestroy() {
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
             super.onDestroy();
         }
-
         @Override
         public void onVisibilityChanged(boolean visible) {
             super.onVisibilityChanged(visible);
-
             if (visible) {
                 registerReceiver();
-
                 // Update time zone in case it changed while we weren't visible.
                 mCalendar.setTimeZone(TimeZone.getDefault());
                 invalidate();
             } else {
                 unregisterReceiver();
             }
-
             // Whether the timer should be running depends on whether we're visible (as well as
             // whether we're in ambient mode), so we may need to start or stop the timer.
             updateTimer();
         }
-
         private void registerReceiver() {
             if (mRegisteredTimeZoneReceiver) {
                 return;
@@ -217,7 +246,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
             FlatWatchFace.this.registerReceiver(mTimeZoneReceiver, filter);
         }
-
         private void unregisterReceiver() {
             if (!mRegisteredTimeZoneReceiver) {
                 return;
@@ -225,37 +253,50 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mRegisteredTimeZoneReceiver = false;
             FlatWatchFace.this.unregisterReceiver(mTimeZoneReceiver);
         }
-
         @Override
         public void onPropertiesChanged(Bundle properties) {
             super.onPropertiesChanged(properties);
             mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
-            //mBurnInProtection = properties.getBoolean(PROPERTY_BURN_IN_PROTECTION, false);
+            mBurnInProtection = properties.getBoolean(PROPERTY_BURN_IN_PROTECTION, false);
+            for(ComplicationDrawable cd : mComplicationDrawables){
+                cd.setLowBitAmbient(mLowBitAmbient);
+                cd.setBurnInProtection(mBurnInProtection);
+            }
         }
-
         @Override
         public void onTimeTick() {
             super.onTimeTick();
             invalidate();
         }
-
         @Override
         public void onAmbientModeChanged(boolean inAmbientMode) {
             super.onAmbientModeChanged(inAmbientMode);
-
             //mAmbient = inAmbientMode;
             if (mLowBitAmbient) {
                 mTimePaint.setAntiAlias(!inAmbientMode);
             }
-
+            for(ComplicationDrawable cd : mComplicationDrawables)
+                cd.setInAmbientMode(inAmbientMode);
             // Whether the timer should be running depends on whether we're visible (as well as
             // whether we're in ambient mode), so we may need to start or stop the timer.
             updateTimer();
         }
 
+        /*
+         * Called when there is updated data for a complication id.
+         */
+        @Override
+        public void onComplicationDataUpdate(int complicationId,
+                                             ComplicationData complicationData) {
+            // Adds/updates active complication data in the array.
+            mComplicationDatas[complicationId] = complicationData;
+            // Updates correct ComplicationDrawable with updated data.
+            mComplicationDrawables[complicationId].setComplicationData(complicationData);
+            invalidate();
+        }
         /**
-         * Captures tap event (and tap type) and toggles the background color if the user finishes
-         * a tap.
+         * Captures tap event (and tap type) and toggles the background color if the
+         * user finishes a tap.
          */
         @Override
         public void onTapCommand(int tapType, int x, int y, long eventTime) {
@@ -268,40 +309,42 @@ public class FlatWatchFace extends CanvasWatchFaceService {
                     break;
                 case TAP_TYPE_TAP:
                     // The user has completed the tap gesture.
-                    // TODO: Add code to handle the tap gesture.
-                    Toast.makeText(getApplicationContext(), R.string.message, Toast.LENGTH_SHORT)
-                            .show();
+                    for(ComplicationDrawable cd : mComplicationDrawables)
+                        if(cd.onTap(x, y))
+                            return;
                     break;
             }
             invalidate();
         }
-
         @Override
         public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             super.onSurfaceChanged(holder, format, width, height);
             mWidth = width;
             mHeight = height;
-
+            innerCircle = new RectF(mMinuteHandOffset,mMinuteHandOffset,
+                    mWidth-mMinuteHandOffset,mHeight-mMinuteHandOffset);
             mScale = ((float) width) / (float) mBackgroundImage.getWidth();
             mBackgroundImage = Bitmap.createScaledBitmap
                     (mBackgroundImage, (int)(mBackgroundImage.getWidth() * mScale),
                             (int)(mBackgroundImage.getHeight() * mScale), true);
-
-            /*
-             * Find the coordinates of the center point on the screen.
-             * Ignore the window insets so that, on round watches
-             * with a "chin", the watch face is centered on the entire screen,
-             * not just the usable portion.
-             */
+            // Set complication size
             mCenterX = mWidth / 2f;
             mCenterY = mHeight / 2f;
-            /*
-             * Calculate the lengths of the watch hands and store them in member variables.
-             */
-            mHourHandLength = mCenterX - mHourHandOffset - 20;
-            mDateYOffset = mCenterY / 4f;
-        }
+            //mHourHandLength = mCenterX - mHourHandOffset - 20;
+            mDateYOffset = mCenterY / 2.5f;
 
+            Rect rect;
+            int complicationSize = width/4;
+            rect = new Rect(width/6,height/2,
+                    width/6+complicationSize,height/2+complicationSize);
+            mComplicationDrawables[0].setBounds(rect);
+            rect = new Rect(width/2-complicationSize/2,height/2+mCenterYOffset,
+                    width/2+complicationSize/2,height/2+mCenterYOffset+complicationSize);
+            mComplicationDrawables[1].setBounds(rect);
+            rect = new Rect(5*width/6-complicationSize,height/2,
+                    5*width/6,height/2+complicationSize);
+            mComplicationDrawables[2].setBounds(rect);
+        }
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             // Draw the background.
@@ -310,61 +353,45 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             } else {
                 canvas.drawBitmap(mBackgroundImage, 0, 0, mBackgroundPaint);
             }
-
-            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             long now = System.currentTimeMillis();
             mCalendar.setTimeInMillis(now);
-
-            //String time = String.format(Locale.getDefault(),"%d:%02d",
-                    //mCalendar.get(Calendar.HOUR),mCalendar.get(Calendar.MINUTE));
             String time = mTimeFormat.format(mCalendar.getTime());
             String date = mDateFormat.format(mCalendar.getTime());
             canvas.drawText(time, mCenterX, mCenterY - mTimeYOffset, mTimePaint);
             canvas.drawText(date, mCenterX , mCenterY - mDateYOffset, mDatePaint);
-
-            /*
-             * These calculations reflect the rotation in degrees per unit of time, e.g.,
-             * 360 / 60 = 6 and 360 / 12 = 30.
-             */
-
             final float minutesRotation = mCalendar.get(Calendar.MINUTE) * 6f;
-
-            final float hourHandOffset = mCalendar.get(Calendar.MINUTE) / 2f;
-            final float hoursRotation = (mCalendar.get(Calendar.HOUR) * 30) + hourHandOffset;
-
+            final float hoursRotation = (mCalendar.get(Calendar.HOUR) * 30) +
+                    mCalendar.get(Calendar.MINUTE) / 2f;
             // save the canvas state before we begin to rotate it
             canvas.save();
-
             canvas.rotate(hoursRotation, mCenterX, mCenterY);
-            canvas.drawLine(mCenterX, mCenterY - mHourHandLength, mCenterX, mHourHandOffset, mHandHourPaint);
-            RectF innerCircle = new RectF(mMinuteHandOffset,mMinuteHandOffset,
-                    mWidth-mMinuteHandOffset,mHeight-mMinuteHandOffset);
+            canvas.drawLine(mCenterX, mHourHandOffset,mCenterX,
+                    mHourHandOffset + mHourHandLength + hoursRotation/15, mHandHourPaint);
             canvas.drawOval(innerCircle,mCirclePaint);
             canvas.drawArc(innerCircle,-90-hoursRotation,minutesRotation,
                     false,mMinuteHandPaint);
             // restore the canvas' original orientation.
             canvas.restore();
+            for(ComplicationDrawable cd : mComplicationDrawables)
+                cd.draw(canvas,now);
         }
-
         /**
-         * Starts the {@link #mUpdateTimeHandler} timer if it should be running and isn't currently
-         * or stops it if it shouldn't be running but currently is.
+         * Starts the {@link #mUpdateTimeHandler} timer if it should be running and isn't
+         * currently or stops it if it shouldn't be running but currently is.
          */
-        private void updateTimer() {
+        private void updateTimer() { //FIXME is it needed?
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
             if (shouldTimerBeRunning()) {
                 mUpdateTimeHandler.sendEmptyMessage(MSG_UPDATE_TIME);
             }
         }
-
         /**
-         * Returns whether the {@link #mUpdateTimeHandler} timer should be running. The timer should
-         * only run when we're visible and in interactive mode.
+         * Returns whether the {@link #mUpdateTimeHandler} timer should be running.
+         * The timer should only run when we're visible and in interactive mode.
          */
         private boolean shouldTimerBeRunning() {
             return isVisible() && !isInAmbientMode();
         }
-
         /**
          * Handle updating the time periodically in interactive mode.
          */

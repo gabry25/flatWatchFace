@@ -142,7 +142,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
          */
         private boolean mLowBitAmbient;
         private boolean mBurnInProtection;
-        //private boolean mAmbient;
+        private boolean mAmbient;
 
         private void initVariables(Resources res){
             mMinutesStrokeWidth = res.getDimension(R.dimen.minutes_stroke_width);
@@ -212,19 +212,9 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             // Initializes Complications
             mComplicationDrawables = new ComplicationDrawable[COMPLICATION_IDS.length];
             mComplicationDatas = new ComplicationData[COMPLICATION_IDS.length];
-            //mComplicationDrawables = new SparseArray<>(COMPLICATION_IDS.length);
-            int compColor = ContextCompat.getColor(getApplicationContext(),
-                    R.color.outline_complications);
             for(int i=0;i<COMPLICATION_IDS.length;++i) {
-                //mComplicationDrawables[i] = (ComplicationDrawable) getDrawable(R.drawable.custom_complication_styles);
-                //mComplicationDrawables[i].setContext(getApplicationContext());
-                mComplicationDrawables[i] = new ComplicationDrawable(getApplicationContext());
-                mComplicationDrawables[i].setTextColorActive(compColor);
-                mComplicationDrawables[i].setIconColorActive(compColor);
-                mComplicationDrawables[i].setBorderStyleActive(ComplicationDrawable
-                        .BORDER_STYLE_NONE);
-                //mComplicationDrawables[i].setTextColorAmbient(compColor);
-                //mComplicationDrawables[i].setIconColorAmbient(compColor);
+                mComplicationDrawables[i] = (ComplicationDrawable) getDrawable(R.drawable.complication_styles);
+                mComplicationDrawables[i].setContext(getApplicationContext());
             }
             setActiveComplications(COMPLICATION_IDS);
         }
@@ -281,7 +271,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         @Override
         public void onAmbientModeChanged(boolean inAmbientMode) {
             super.onAmbientModeChanged(inAmbientMode);
-            //mAmbient = inAmbientMode;
+            mAmbient = inAmbientMode;
             if (mLowBitAmbient) {
                 mTimePaint.setAntiAlias(!inAmbientMode);
             }
@@ -343,7 +333,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             //mHourHandLength = mCenterX - mHourHandOffset - 20;
 
             Rect rect;
-            int complicationSize = width/4;
+            int complicationSize = width/5;
             rect = new Rect(width/6,height/2,
                     width/6+complicationSize,height/2+complicationSize);
             mComplicationDrawables[0].setBounds(rect);
@@ -357,7 +347,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             // Draw the background.
-            if (isInAmbientMode()) {
+            if (mAmbient) {
                 canvas.drawColor(Color.BLACK);
             } else {
                 canvas.drawBitmap(mBackgroundImage, 0, 0, mBackgroundPaint);
@@ -368,18 +358,22 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             String date = mDateFormat.format(mCalendar.getTime());
             canvas.drawText(time, mCenterX, mCenterY - mTimeYOffset, mTimePaint);
             canvas.drawText(date, mCenterX , mCenterY - mDateYOffset, mDatePaint);
-            final float minutesRotation = mCalendar.get(Calendar.MINUTE) * 6f;
-            final float hoursRotation = (mCalendar.get(Calendar.HOUR) * 30) +
-                    mCalendar.get(Calendar.MINUTE) / 2f;
-            // save the canvas state before we begin to rotate it
-            canvas.save();
-            canvas.rotate(hoursRotation, mCenterX, mCenterY);
-            canvas.drawLine(mCenterX,0,mCenterX,mMinuteCircleOffset,mHandHourPaint);
-            canvas.drawOval(innerCircle,mCirclePaint);
-            canvas.drawArc(innerCircle,-90-hoursRotation,minutesRotation,
-                    false,mMinuteHandPaint);
-            // restore the canvas' original orientation.
-            canvas.restore();
+
+            // avoid drawing the analog part in ambient
+            if(!mAmbient) {
+                final float minutesRotation = mCalendar.get(Calendar.MINUTE) * 6f;
+                final float hoursRotation = (mCalendar.get(Calendar.HOUR) * 30) +
+                        mCalendar.get(Calendar.MINUTE) / 2f;
+                // save the canvas state before we begin to rotate it
+                canvas.save();
+                canvas.rotate(hoursRotation, mCenterX, mCenterY);
+                canvas.drawLine(mCenterX, 0, mCenterX, mMinuteCircleOffset, mHandHourPaint);
+                canvas.drawOval(innerCircle, mCirclePaint);
+                canvas.drawArc(innerCircle, -90 - hoursRotation, minutesRotation,
+                        false, mMinuteHandPaint);
+                // restore the canvas' original orientation.
+                canvas.restore();
+            }
             for(ComplicationDrawable cd : mComplicationDrawables)
                 cd.draw(canvas,now);
         }

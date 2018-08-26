@@ -4,7 +4,9 @@
     <color name="digital_time">#ffffff</color>
     <color name="digital_date">#708090</color>
     <color name="analog_circle">#2f4f4f</color>
-    <color name="analog_minutes">#018786</color>
-    <color name="analog_hours">#f50057</color>
-    <color name="outline_complications">#f4ffff</color>
+    <color name="analog_minutes">#03dac6</color>
+    <color name="analog_hours">#e91e63</color>
+    <color name="complication_inside">#ffffff</color>
+    <color name="complication_inside_ambient">#999999</color>
+    <color name="complication_highlight">#eeeeee</color>
 </resources>

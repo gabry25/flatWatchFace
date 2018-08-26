@@ -21,21 +21,22 @@
     app:backgroundColor="@android:color/transparent"
     app:borderStyle="none"
     app:highlightColor="@color/complication_highlight"
-    app:iconColor="@color/complication_inside"
-    app:rangedValuePrimaryColor="@color/complication_inside"
-    app:rangedValueRingWidth="1dp"
+    app:iconColor="@color/default_bright"
+    app:rangedValuePrimaryColor="@color/default_bright"
+    app:rangedValueRingWidth="2dp"
     app:rangedValueSecondaryColor="@android:color/transparent"
-    app:textColor="@color/complication_inside"
-    app:textSize="12sp"
+    app:textColor="@color/default_bright"
+    app:textSize="15sp"
     app:textTypeface="sans-serif-condensed"
-    app:titleColor="@color/complication_inside"
-    app:titleSize="10sp"
+    app:titleColor="@color/default_bright"
+    app:titleSize="15sp"
     app:titleTypeface="sans-serif">
 
     <ambient
         app:highlightColor="@color/complication_highlight"
-        app:iconColor="@color/complication_inside_ambient"
-        app:rangedValuePrimaryColor="@color/complication_inside_ambient"
-        app:titleColor="@color/complication_inside_ambient"
+        app:iconColor="@color/default_bright_ambient"
+        app:rangedValuePrimaryColor="@color/default_bright_ambient"
+        app:titleColor="@color/default_bright_ambient"
+        app:textColor="@color/default_bright_ambient"
         app:rangedValueSecondaryColor="@android:color/transparent"/>
 </drawable>

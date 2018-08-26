@@ -4,14 +4,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.VectorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -118,11 +117,10 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private float mDateYOffset;
         private float mTimeYOffset;
         private int mCenterYOffset;
-        private Paint mBackgroundPaint;
         private Paint mHandHourPaint;
         private Paint mMinuteHandPaint;
         private Paint mCirclePaint;
-        private Bitmap mBackgroundImage;
+        private VectorDrawable mBackgroundImage;
         private Paint mDatePaint;
         private Paint mTimePaint;
         private float mMinuteCircleOffset;
@@ -130,7 +128,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         private int mHeight;
         private float mCenterX;
         private float mCenterY;
-        private float mScale = 1;
         RectF innerCircle;
         private DateFormat mDateFormat;
         private DateFormat mTimeFormat;
@@ -164,10 +161,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             initVariables(res);
             mCalendar = Calendar.getInstance();
             // Initializes background.
-            mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(
-                    ContextCompat.getColor(getApplicationContext(), R.color.background));
-            mBackgroundImage = BitmapFactory.decodeResource(res,R.drawable.background);
+            mBackgroundImage = (VectorDrawable) getDrawable(R.drawable.background);
             // Initializes Analog Watch Face.
             mMinuteHandPaint = new Paint();
             mMinuteHandPaint.setStyle(Paint.Style.STROKE);
@@ -179,7 +173,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mCirclePaint = new Paint();
             mCirclePaint.setStyle(Paint.Style.STROKE);
             mCirclePaint.setColor(ContextCompat.getColor(getApplicationContext(),
-                    R.color.analog_circle));
+                    R.color.default_dark));
             mCirclePaint.setStrokeWidth(mMinutesStrokeWidth +5);
             mCirclePaint.setAntiAlias(true);
             mCirclePaint.setStrokeCap(Paint.Cap.ROUND);
@@ -198,14 +192,14 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mTimePaint.setTypeface(NORMAL_TYPEFACE);
             mTimePaint.setAntiAlias(true);
             mTimePaint.setColor(ContextCompat.getColor(getApplicationContext(),
-                    R.color.digital_time));
+                    R.color.default_bright));
             mTimePaint.setTextSize(mDigitalTimeSize);
             mTimePaint.setTextAlign(Paint.Align.CENTER);
             mDatePaint = new Paint();
             mDatePaint.setTypeface(NORMAL_TYPEFACE);
             mDatePaint.setAntiAlias(true);
             mDatePaint.setColor(ContextCompat.getColor(getApplicationContext(),
-                    R.color.digital_date));
+                    R.color.default_middle));
             mDatePaint.setTextSize(mDigitalDateSize);
             mDatePaint.setTextAlign(Paint.Align.CENTER);
 
@@ -323,10 +317,7 @@ public class FlatWatchFace extends CanvasWatchFaceService {
             mHeight = height;
             innerCircle = new RectF(mMinuteCircleOffset,mMinuteCircleOffset,
                     mWidth-mMinuteCircleOffset,mHeight-mMinuteCircleOffset);
-            mScale = ((float) width) / (float) mBackgroundImage.getWidth();
-            mBackgroundImage = Bitmap.createScaledBitmap
-                    (mBackgroundImage, (int)(mBackgroundImage.getWidth() * mScale),
-                            (int)(mBackgroundImage.getHeight() * mScale), true);
+            mBackgroundImage.setBounds(0,0,width,height);
             // Set complication size
             mCenterX = mWidth / 2f;
             mCenterY = mHeight / 2f;
@@ -346,19 +337,21 @@ public class FlatWatchFace extends CanvasWatchFaceService {
         }
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            // Draw the background.
-            if (mAmbient) {
-                canvas.drawColor(Color.BLACK);
-            } else {
-                canvas.drawBitmap(mBackgroundImage, 0, 0, mBackgroundPaint);
-            }
             long now = System.currentTimeMillis();
             mCalendar.setTimeInMillis(now);
+            // Draw the background.
+            if (mAmbient)
+                canvas.drawColor(Color.BLACK);
+            else
+                mBackgroundImage.draw(canvas);
+            // Draw complications
+            for(ComplicationDrawable cd : mComplicationDrawables)
+                cd.draw(canvas,now);
+            // Draw digital part
             String time = mTimeFormat.format(mCalendar.getTime());
             String date = mDateFormat.format(mCalendar.getTime());
             canvas.drawText(time, mCenterX, mCenterY - mTimeYOffset, mTimePaint);
             canvas.drawText(date, mCenterX , mCenterY - mDateYOffset, mDatePaint);
-
             // avoid drawing the analog part in ambient
             if(!mAmbient) {
                 final float minutesRotation = mCalendar.get(Calendar.MINUTE) * 6f;
@@ -374,8 +367,6 @@ public class FlatWatchFace extends CanvasWatchFaceService {
                 // restore the canvas' original orientation.
                 canvas.restore();
             }
-            for(ComplicationDrawable cd : mComplicationDrawables)
-                cd.draw(canvas,now);
         }
         /**
          * Starts the {@link #mUpdateTimeHandler} timer if it should be running and isn't
